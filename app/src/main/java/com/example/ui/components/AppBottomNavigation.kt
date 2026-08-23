@@ -20,8 +20,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import com.example.ui.theme.LegalGold
-import com.example.ui.theme.LegalNavyPrimary
 import com.example.ui.viewmodel.AppScreen
 
 @Composable
@@ -60,7 +58,7 @@ fun AppBottomNavigation(
         ),
         NavigationItem(
             screen = AppScreen.STUDY_TOOLS,
-            label = "Estudo & Quiz",
+            label = "Estudo",
             selectedIcon = Icons.Filled.Psychology,
             unselectedIcon = Icons.Outlined.Psychology,
             testTag = "nav_study"

@@ -7,12 +7,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.db.AppDatabase
 import com.example.data.db.FavoriteEntity
 import com.example.data.db.NoteEntity
+import com.example.data.db.QuizProgressEntity
 import com.example.data.model.CivilArticle
 import com.example.data.model.CivilBook
 import com.example.data.model.CivilCategory
 import com.example.data.model.LatinLegalTerm
 import com.example.data.model.LegalQuiz
 import com.example.data.model.PrescriptionRule
+import com.example.data.model.QuizLevel
 import com.example.data.repository.CivilCodeRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -47,10 +49,15 @@ data class UiState(
     val textScale: Float = 1.0f,
     val useSerifFont: Boolean = true,
     val isTtsSpeaking: Boolean = false,
-    val activeQuizIndex: Int = 0,
-    val quizSelectedOption: Int? = null,
-    val quizScore: Int = 0,
-    val isQuizAnswerSubmitted: Boolean = false
+    
+    // Gamified Level Quiz State
+    val selectedQuizLevelId: Int = 1,
+    val isPlayingQuizLevel: Boolean = false,
+    val levelQuestionIndex: Int = 0,
+    val levelSelectedOption: Int? = null,
+    val isLevelAnswerSubmitted: Boolean = false,
+    val currentLevelAttemptScore: Int = 0,
+    val isLevelFinished: Boolean = false
 )
 
 class CivilCodeViewModel(application: Application) : AndroidViewModel(application), TextToSpeech.OnInitListener {
@@ -73,7 +80,7 @@ class CivilCodeViewModel(application: Application) : AndroidViewModel(applicatio
     val keyArticles: List<CivilArticle> = repository.getKeyArticles()
     val latinTerms: List<LatinLegalTerm> = repository.getLatinTerms()
     val prescriptionRules: List<PrescriptionRule> = repository.getPrescriptionRules()
-    val quizQuestions: List<LegalQuiz> = repository.getQuizQuestions()
+    val quizLevels: List<QuizLevel> = repository.getQuizLevels()
 
     val favorites: StateFlow<List<FavoriteEntity>> = repository.getAllFavorites()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -84,12 +91,14 @@ class CivilCodeViewModel(application: Application) : AndroidViewModel(applicatio
     val recentSearches: StateFlow<List<String>> = repository.getRecentSearches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val quizProgressList: StateFlow<List<QuizProgressEntity>> = repository.getAllQuizProgress()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             val result = tts?.setLanguage(Locale("pt", "PT"))
             ttsReady = result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED
             if (!ttsReady) {
-                // Fallback to Brazilian Portuguese or default Portuguese if PT-PT voice is not present
                 val resultBr = tts?.setLanguage(Locale("pt", "BR"))
                 ttsReady = resultBr != TextToSpeech.LANG_MISSING_DATA && resultBr != TextToSpeech.LANG_NOT_SUPPORTED
             }
@@ -106,6 +115,11 @@ class CivilCodeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun navigateBack(): Boolean {
+        if (_uiState.value.currentScreen == AppScreen.STUDY_TOOLS && _uiState.value.isPlayingQuizLevel) {
+            exitLevelToLevelList()
+            return true
+        }
+
         val history = _uiState.value.previousScreens
         if (history.isNotEmpty()) {
             val target = history.last()
@@ -160,40 +174,41 @@ class CivilCodeViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // Search Engine
+    fun nextArticle() {
+        val nextId = (_uiState.value.selectedArticleId + 1).coerceAtMost(2334)
+        openArticle(nextId)
+    }
+
+    fun previousArticle() {
+        val prevId = (_uiState.value.selectedArticleId - 1).coerceAtLeast(1)
+        openArticle(prevId)
+    }
+
+    // Search
     fun updateSearchQuery(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
-        performSearch()
+        performSearch(query, _uiState.value.searchBookFilter, _uiState.value.searchCategoryFilter)
     }
 
-    fun setSearchFilters(bookId: String?, categoryId: String?) {
+    fun setSearchFilters(bookFilter: String?, categoryFilter: String?) {
         _uiState.value = _uiState.value.copy(
-            searchBookFilter = bookId,
-            searchCategoryFilter = categoryId
+            searchBookFilter = bookFilter,
+            searchCategoryFilter = categoryFilter
         )
-        performSearch()
+        performSearch(_uiState.value.searchQuery, bookFilter, categoryFilter)
     }
 
-    fun performSearch() {
-        val q = _uiState.value.searchQuery
-        if (q.isBlank()) {
-            _uiState.value = _uiState.value.copy(searchResults = emptyList(), isSearching = false)
-            return
-        }
-
+    private fun performSearch(query: String, bookFilter: String?, categoryFilter: String?) {
         viewModelScope.launch {
+            if (query.isBlank()) {
+                _uiState.value = _uiState.value.copy(searchResults = emptyList(), isSearching = false)
+                return@launch
+            }
             _uiState.value = _uiState.value.copy(isSearching = true)
-            val results = repository.searchArticles(
-                query = q,
-                bookFilter = _uiState.value.searchBookFilter,
-                categoryFilter = _uiState.value.searchCategoryFilter
-            )
-            _uiState.value = _uiState.value.copy(
-                searchResults = results,
-                isSearching = false
-            )
-            if (q.length > 2) {
-                repository.saveSearch(q)
+            val results = repository.searchArticles(query, bookFilter, categoryFilter)
+            _uiState.value = _uiState.value.copy(searchResults = results, isSearching = false)
+            if (query.length >= 3) {
+                repository.saveSearch(query)
             }
         }
     }
@@ -211,24 +226,24 @@ class CivilCodeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     // Favorites
-    fun toggleFavorite(articleId: Int, tag: String = "Geral") {
+    fun isArticleFavorite(articleId: Int): Boolean {
+        return favorites.value.any { it.articleId == articleId }
+    }
+
+    fun toggleFavorite(articleId: Int, folderTag: String = "Geral") {
         viewModelScope.launch {
-            repository.toggleFavorite(articleId, tag)
+            repository.toggleFavorite(articleId, folderTag)
         }
     }
 
-    fun setFavoriteTag(articleId: Int, tag: String) {
+    fun updateFavoriteTag(articleId: Int, tag: String) {
         viewModelScope.launch {
             repository.setFavoriteTag(articleId, tag)
         }
     }
 
-    fun isArticleFavorite(articleId: Int): Boolean {
-        return favorites.value.any { it.articleId == articleId }
-    }
-
     // Notes
-    fun saveNote(articleId: Int, title: String, content: String, colorTag: String, noteId: Long = 0) {
+    fun saveNote(articleId: Int, title: String, content: String, colorTag: String = "Azul", noteId: Long = 0) {
         viewModelScope.launch {
             repository.saveNote(articleId, title, content, colorTag, noteId)
         }
@@ -240,7 +255,7 @@ class CivilCodeViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // Export Studio Selection
+    // Export Selection
     fun toggleExportSelection(articleId: Int) {
         val current = _uiState.value.selectedForExport.toMutableSet()
         if (current.contains(articleId)) {
@@ -251,24 +266,40 @@ class CivilCodeViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.value = _uiState.value.copy(selectedForExport = current)
     }
 
+    fun selectAllForExport(articleIds: List<Int>) {
+        _uiState.value = _uiState.value.copy(selectedForExport = articleIds.toSet())
+    }
+
     fun selectAllInCurrentView(articleIds: List<Int>) {
         val current = _uiState.value.selectedForExport.toMutableSet()
-        current.addAll(articleIds)
+        if (current.containsAll(articleIds)) {
+            current.removeAll(articleIds.toSet())
+        } else {
+            current.addAll(articleIds)
+        }
         _uiState.value = _uiState.value.copy(selectedForExport = current)
+    }
+
+    fun getSelectedArticlesForExport(): List<CivilArticle> {
+        return _uiState.value.selectedForExport.sorted().map { repository.getArticle(it) }
     }
 
     fun clearExportSelection() {
         _uiState.value = _uiState.value.copy(selectedForExport = emptySet())
     }
 
-    fun getSelectedArticlesForExport(): List<CivilArticle> {
-        return _uiState.value.selectedForExport.map { repository.getArticle(it) }.sortedBy { it.id }
-    }
-
-    // Reader Customization
-    fun changeFontSize(delta: Float) {
+    fun adjustTextScale(delta: Float) {
         val newScale = (_uiState.value.textScale + delta).coerceIn(0.8f, 1.6f)
         _uiState.value = _uiState.value.copy(textScale = newScale)
+    }
+
+    fun changeFontSize(delta: Float) {
+        adjustTextScale(delta)
+    }
+
+    fun changeFontSize(increase: Boolean) {
+        val delta = if (increase) 0.1f else -0.1f
+        adjustTextScale(delta)
     }
 
     fun toggleFontFamily() {
@@ -290,37 +321,83 @@ class CivilCodeViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // Quiz Mode
+    // Gamified Level Quiz System
+    fun isLevelUnlocked(levelId: Int, progressList: List<QuizProgressEntity>): Boolean {
+        if (levelId <= 1) return true
+        val prevProgress = progressList.find { it.levelId == levelId - 1 }
+        return prevProgress?.isCompleted == true || (prevProgress?.bestScore ?: 0) >= 7
+    }
+
+    fun startQuizLevel(levelId: Int) {
+        _uiState.value = _uiState.value.copy(
+            selectedQuizLevelId = levelId,
+            isPlayingQuizLevel = true,
+            levelQuestionIndex = 0,
+            levelSelectedOption = null,
+            isLevelAnswerSubmitted = false,
+            currentLevelAttemptScore = 0,
+            isLevelFinished = false
+        )
+    }
+
     fun selectQuizOption(index: Int) {
-        if (_uiState.value.isQuizAnswerSubmitted) return
-        _uiState.value = _uiState.value.copy(quizSelectedOption = index)
+        if (_uiState.value.isLevelAnswerSubmitted) return
+        _uiState.value = _uiState.value.copy(levelSelectedOption = index)
     }
 
     fun submitQuizAnswer() {
-        val currentQ = quizQuestions[_uiState.value.activeQuizIndex]
-        val isCorrect = _uiState.value.quizSelectedOption == currentQ.correctIndex
-        val newScore = if (isCorrect) _uiState.value.quizScore + 1 else _uiState.value.quizScore
+        val level = quizLevels.find { it.levelId == _uiState.value.selectedQuizLevelId } ?: return
+        val currentQ = level.questions.getOrNull(_uiState.value.levelQuestionIndex) ?: return
+        val isCorrect = _uiState.value.levelSelectedOption == currentQ.correctIndex
+        val newScore = if (isCorrect) _uiState.value.currentLevelAttemptScore + 1 else _uiState.value.currentLevelAttemptScore
+
         _uiState.value = _uiState.value.copy(
-            isQuizAnswerSubmitted = true,
-            quizScore = newScore
+            isLevelAnswerSubmitted = true,
+            currentLevelAttemptScore = newScore
         )
     }
 
     fun nextQuizQuestion() {
-        val nextIdx = (_uiState.value.activeQuizIndex + 1) % quizQuestions.size
-        _uiState.value = _uiState.value.copy(
-            activeQuizIndex = nextIdx,
-            quizSelectedOption = null,
-            isQuizAnswerSubmitted = false
-        )
+        val level = quizLevels.find { it.levelId == _uiState.value.selectedQuizLevelId } ?: return
+        val nextIdx = _uiState.value.levelQuestionIndex + 1
+
+        if (nextIdx < level.questions.size) {
+            _uiState.value = _uiState.value.copy(
+                levelQuestionIndex = nextIdx,
+                levelSelectedOption = null,
+                isLevelAnswerSubmitted = false
+            )
+        } else {
+            val finalScore = _uiState.value.currentLevelAttemptScore
+            _uiState.value = _uiState.value.copy(
+                isLevelFinished = true
+            )
+            viewModelScope.launch {
+                repository.recordQuizAttempt(level.levelId, finalScore)
+            }
+        }
     }
 
-    fun resetQuiz() {
+    fun retryCurrentLevel() {
+        startQuizLevel(_uiState.value.selectedQuizLevelId)
+    }
+
+    fun nextQuizLevel() {
+        val nextLevelId = _uiState.value.selectedQuizLevelId + 1
+        if (nextLevelId <= quizLevels.size) {
+            startQuizLevel(nextLevelId)
+        } else {
+            exitLevelToLevelList()
+        }
+    }
+
+    fun exitLevelToLevelList() {
         _uiState.value = _uiState.value.copy(
-            activeQuizIndex = 0,
-            quizSelectedOption = null,
-            isQuizAnswerSubmitted = false,
-            quizScore = 0
+            isPlayingQuizLevel = false,
+            isLevelFinished = false,
+            levelQuestionIndex = 0,
+            levelSelectedOption = null,
+            isLevelAnswerSubmitted = false
         )
     }
 

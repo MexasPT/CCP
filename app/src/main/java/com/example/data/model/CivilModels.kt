@@ -60,6 +60,16 @@ data class LegalQuiz(
     val category: String
 )
 
+data class QuizLevel(
+    val levelId: Int, // 1 to 10
+    val title: String,
+    val subtitle: String,
+    val bookReference: String,
+    val description: String,
+    val iconName: String,
+    val questions: List<LegalQuiz>
+)
+
 data class PrescriptionRule(
     val title: String,
     val durationText: String,

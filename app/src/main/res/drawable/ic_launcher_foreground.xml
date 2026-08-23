@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/ic_ccp_logo_1787448996795"
+        android:width="78dp"
+        android:height="78dp"
+        android:drawable="@drawable/legal_scales_black_icon_1787483300746"
         android:gravity="center" />
 </layer-list>

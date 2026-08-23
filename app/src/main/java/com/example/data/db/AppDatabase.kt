@@ -9,15 +9,17 @@ import androidx.room.RoomDatabase
     entities = [
         FavoriteEntity::class,
         NoteEntity::class,
-        RecentSearchEntity::class
+        RecentSearchEntity::class,
+        QuizProgressEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun favoriteDao(): FavoriteDao
     abstract fun noteDao(): NoteDao
     abstract fun recentSearchDao(): RecentSearchDao
+    abstract fun quizProgressDao(): QuizProgressDao
 
     companion object {
         @Volatile
@@ -29,7 +31,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "ccp_database.db"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

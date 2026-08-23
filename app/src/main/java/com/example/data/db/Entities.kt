@@ -26,3 +26,14 @@ data class RecentSearchEntity(
     @PrimaryKey val query: String,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "quiz_progress")
+data class QuizProgressEntity(
+    @PrimaryKey val levelId: Int, // 1 to 10
+    val isCompleted: Boolean = false, // true if bestScore >= 7
+    val bestScore: Int = 0, // 0 to 10
+    val attemptsCount: Int = 0,
+    val isPerfect: Boolean = false, // true if bestScore == 10
+    val earnedPoints: Int = 0, // bestScore + (if (bestScore == 10) 3 else 0)
+    val lastPlayedTimestamp: Long = System.currentTimeMillis()
+)

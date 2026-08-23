@@ -63,3 +63,21 @@ interface RecentSearchDao {
     @Query("DELETE FROM recent_searches")
     suspend fun clearAllSearches()
 }
+
+@Dao
+interface QuizProgressDao {
+    @Query("SELECT * FROM quiz_progress ORDER BY levelId ASC")
+    fun getAllProgress(): Flow<List<QuizProgressEntity>>
+
+    @Query("SELECT * FROM quiz_progress WHERE levelId = :levelId LIMIT 1")
+    suspend fun getProgressForLevel(levelId: Int): QuizProgressEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveProgress(progress: QuizProgressEntity)
+
+    @Query("SELECT SUM(earnedPoints) FROM quiz_progress")
+    fun getTotalEarnedPoints(): Flow<Int?>
+
+    @Query("SELECT COUNT(*) FROM quiz_progress WHERE isCompleted = 1")
+    fun getCompletedLevelsCount(): Flow<Int>
+}

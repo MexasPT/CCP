@@ -1,6 +1,8 @@
 {
-  "name": "CCP - Código Civil Português",
+  "name": "Código Civil",
   "description": "Catálogo completo, interativo e offline do Código Civil Português com pesquisa avançada, anotações, favoritos e exportação em PDF.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

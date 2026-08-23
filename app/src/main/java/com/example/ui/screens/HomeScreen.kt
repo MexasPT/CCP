@@ -122,7 +122,7 @@ fun HomeScreen(
             BookCard(
                 book = book,
                 onClick = { viewModel.selectBook(book.id) },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
         }
 
@@ -217,7 +217,7 @@ private fun HeroHeader(
                         )
                     )
                     Text(
-                        text = "Código Civil",
+                        text = "Código Civil PT",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White,

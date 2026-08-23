@@ -2,9 +2,11 @@ package com.example.data.repository
 
 import com.example.data.CivilCodeArticles
 import com.example.data.CivilCodeStructure
+import com.example.data.CivilQuizLevels
 import com.example.data.db.AppDatabase
 import com.example.data.db.FavoriteEntity
 import com.example.data.db.NoteEntity
+import com.example.data.db.QuizProgressEntity
 import com.example.data.db.RecentSearchEntity
 import com.example.data.model.CivilArticle
 import com.example.data.model.CivilBook
@@ -12,6 +14,7 @@ import com.example.data.model.CivilCategory
 import com.example.data.model.LatinLegalTerm
 import com.example.data.model.LegalQuiz
 import com.example.data.model.PrescriptionRule
+import com.example.data.model.QuizLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
@@ -23,6 +26,7 @@ class CivilCodeRepository(private val database: AppDatabase) {
     private val favoriteDao = database.favoriteDao()
     private val noteDao = database.noteDao()
     private val recentSearchDao = database.recentSearchDao()
+    private val quizProgressDao = database.quizProgressDao()
 
     fun getBooks(): List<CivilBook> = CivilCodeStructure.BOOKS
 
@@ -197,4 +201,34 @@ class CivilCodeRepository(private val database: AppDatabase) {
     fun getPrescriptionRules(): List<PrescriptionRule> = CivilCodeStructure.PRESCRIPTION_RULES
 
     fun getQuizQuestions(): List<LegalQuiz> = CivilCodeStructure.QUIZ_QUESTIONS
+
+    // Quiz Levels & Progression
+    fun getQuizLevels(): List<QuizLevel> = CivilQuizLevels.LEVELS
+
+    fun getQuizLevelById(levelId: Int): QuizLevel? = CivilQuizLevels.LEVELS.find { it.levelId == levelId }
+
+    fun getAllQuizProgress(): Flow<List<QuizProgressEntity>> = quizProgressDao.getAllProgress()
+
+    suspend fun recordQuizAttempt(levelId: Int, score: Int): QuizProgressEntity = withContext(Dispatchers.IO) {
+        val existing = quizProgressDao.getProgressForLevel(levelId)
+        val attempts = (existing?.attemptsCount ?: 0) + 1
+        val newBest = maxOf(existing?.bestScore ?: 0, score)
+        // Success condition: fail at most 3 in 10 -> at least 7/10
+        val isCompleted = newBest >= 7 || (existing?.isCompleted == true)
+        val isPerfect = newBest == 10 || (existing?.isPerfect == true)
+        // Scoring: 1 point per correct answer + 3 extra bonus points if 100% (10/10)
+        val earnedPoints = newBest + (if (isPerfect) 3 else 0)
+
+        val updated = QuizProgressEntity(
+            levelId = levelId,
+            isCompleted = isCompleted,
+            bestScore = newBest,
+            attemptsCount = attempts,
+            isPerfect = isPerfect,
+            earnedPoints = earnedPoints,
+            lastPlayedTimestamp = System.currentTimeMillis()
+        )
+        quizProgressDao.saveProgress(updated)
+        updated
+    }
 }

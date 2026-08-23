@@ -47,13 +47,13 @@ fun AppTopBar(
     exportSelectionCount: Int = 0
 ) {
     val titleText = when (currentScreen) {
-        AppScreen.HOME -> "CCP • Código Civil"
+        AppScreen.HOME -> "Código Civil PT"
         AppScreen.BOOK_EXPLORER -> "Catálogo de Livros"
         AppScreen.ARTICLE_DETAIL -> "Leitor de Artigo"
         AppScreen.ADVANCED_SEARCH -> "Pesquisa Avançada"
         AppScreen.FAVORITES_AND_NOTES -> "Favoritos & Notas"
         AppScreen.EXPORT_STUDIO -> "Exportação PDF & Texto"
-        AppScreen.STUDY_TOOLS -> "Estudo & Prática"
+        AppScreen.STUDY_TOOLS -> "Estudo"
     }
 
     TopAppBar(

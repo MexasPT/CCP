@@ -79,8 +79,6 @@ fun MainApp(
         topBar = {
             AppTopBar(
                 currentScreen = uiState.currentScreen,
-                canNavigateBack = canNavigateBack,
-                onNavigateBack = { viewModel.navigateBack() },
                 onOpenQuickJump = { showQuickJumpDialog = true },
                 onOpenSearch = { viewModel.navigateTo(AppScreen.ADVANCED_SEARCH) },
                 onOpenExport = { viewModel.navigateTo(AppScreen.EXPORT_STUDIO) },

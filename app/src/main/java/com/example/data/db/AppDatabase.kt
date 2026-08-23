@@ -7,15 +7,17 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [
+        CivilArticleEntity::class,
         FavoriteEntity::class,
         NoteEntity::class,
         RecentSearchEntity::class,
         QuizProgressEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
+    abstract fun articleDao(): ArticleDao
     abstract fun favoriteDao(): FavoriteDao
     abstract fun noteDao(): NoteDao
     abstract fun recentSearchDao(): RecentSearchDao

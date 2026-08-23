@@ -3,6 +3,25 @@ package com.example.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
+@Entity(tableName = "civil_articles")
+data class CivilArticleEntity(
+    @PrimaryKey val id: Int, // 1 to 2334
+    val numberFormatted: String, // "Artigo 1.º", "Artigo 483.º"
+    val epigraph: String,
+    val bookId: String,
+    val bookTitle: String,
+    val titleName: String,
+    val chapterName: String,
+    val sectionName: String = "",
+    val text: String,
+    val practicalCommentary: String = "",
+    val keyDoctrineNote: String = "",
+    val categoryId: String = "",
+    val isKeyArticle: Boolean = false,
+    val tags: String = "", // Comma-separated
+    val relatedArticlesCsv: String = "" // Comma-separated IDs
+)
+
 @Entity(tableName = "favorites")
 data class FavoriteEntity(
     @PrimaryKey val articleId: Int,

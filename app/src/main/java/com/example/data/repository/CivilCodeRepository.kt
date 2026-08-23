@@ -4,6 +4,7 @@ import com.example.data.CivilCodeArticles
 import com.example.data.CivilCodeStructure
 import com.example.data.CivilQuizLevels
 import com.example.data.db.AppDatabase
+import com.example.data.db.CivilArticleEntity
 import com.example.data.db.FavoriteEntity
 import com.example.data.db.NoteEntity
 import com.example.data.db.QuizProgressEntity
@@ -15,18 +16,80 @@ import com.example.data.model.LatinLegalTerm
 import com.example.data.model.LegalQuiz
 import com.example.data.model.PrescriptionRule
 import com.example.data.model.QuizLevel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.Normalizer
 
 class CivilCodeRepository(private val database: AppDatabase) {
 
+    private val articleDao = database.articleDao()
     private val favoriteDao = database.favoriteDao()
     private val noteDao = database.noteDao()
     private val recentSearchDao = database.recentSearchDao()
     private val quizProgressDao = database.quizProgressDao()
+
+    init {
+        // Asynchronously populate Room Database with Civil Code articles if empty
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                if (articleDao.getCount() == 0) {
+                    val entities = (1..2334).map { id ->
+                        CivilCodeArticles.getArticle(id).toEntity()
+                    }
+                    articleDao.insertArticles(entities)
+                }
+            } catch (e: Exception) {
+                // Room seeding fallback
+            }
+        }
+    }
+
+    private fun CivilArticle.toEntity(): CivilArticleEntity {
+        return CivilArticleEntity(
+            id = this.id,
+            numberFormatted = this.numberFormatted,
+            epigraph = this.epigraph,
+            bookId = this.bookId,
+            bookTitle = this.bookTitle,
+            titleName = this.titleName,
+            chapterName = this.chapterName,
+            sectionName = this.sectionName,
+            text = this.text,
+            practicalCommentary = this.practicalCommentary,
+            keyDoctrineNote = this.keyDoctrineNote,
+            categoryId = this.categoryId,
+            isKeyArticle = this.isKeyArticle,
+            tags = this.tags.joinToString(","),
+            relatedArticlesCsv = this.relatedArticles.joinToString(",")
+        )
+    }
+
+    private fun CivilArticleEntity.toDomain(): CivilArticle {
+        val tagList = if (this.tags.isBlank()) emptyList() else this.tags.split(",")
+        val related = if (this.relatedArticlesCsv.isBlank()) emptyList() else this.relatedArticlesCsv.split(",").mapNotNull { it.toIntOrNull() }
+        return CivilArticle(
+            id = this.id,
+            numberFormatted = this.numberFormatted,
+            epigraph = this.epigraph,
+            bookId = this.bookId,
+            bookTitle = this.bookTitle,
+            titleName = this.titleName,
+            chapterName = this.chapterName,
+            sectionName = this.sectionName,
+            text = this.text,
+            practicalCommentary = this.practicalCommentary,
+            keyDoctrineNote = this.keyDoctrineNote,
+            relatedArticles = related,
+            categoryId = this.categoryId,
+            isKeyArticle = this.isKeyArticle,
+            tags = tagList
+        )
+    }
 
     fun getBooks(): List<CivilBook> = CivilCodeStructure.BOOKS
 
@@ -58,6 +121,12 @@ class CivilCodeRepository(private val database: AppDatabase) {
     fun getKeyArticles(): List<CivilArticle> {
         val keyIds = listOf(1, 5, 9, 66, 70, 138, 217, 227, 280, 286, 309, 310, 334, 406, 483, 496, 503, 562, 762, 874, 875, 1022, 1207, 1251, 1287, 1305, 1414, 1424, 1576, 1717, 1721, 1773, 2003, 2024, 2133, 2156, 2179)
         return keyIds.map { CivilCodeArticles.getArticle(it) }
+    }
+
+    fun getPersistedArticles(): Flow<List<CivilArticle>> {
+        return articleDao.getAllArticles().map { list ->
+            list.map { it.toDomain() }
+        }
     }
 
     suspend fun searchArticles(

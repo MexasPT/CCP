@@ -8,6 +8,39 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
+interface ArticleDao {
+    @Query("SELECT * FROM civil_articles ORDER BY id ASC")
+    fun getAllArticles(): Flow<List<CivilArticleEntity>>
+
+    @Query("SELECT * FROM civil_articles WHERE id = :id LIMIT 1")
+    fun getArticleById(id: Int): Flow<CivilArticleEntity?>
+
+    @Query("SELECT * FROM civil_articles WHERE id = :id LIMIT 1")
+    suspend fun getArticleDirect(id: Int): CivilArticleEntity?
+
+    @Query("SELECT * FROM civil_articles WHERE bookId = :bookId ORDER BY id ASC")
+    fun getArticlesByBook(bookId: String): Flow<List<CivilArticleEntity>>
+
+    @Query("SELECT * FROM civil_articles WHERE categoryId = :categoryId ORDER BY id ASC")
+    fun getArticlesByCategory(categoryId: String): Flow<List<CivilArticleEntity>>
+
+    @Query("SELECT * FROM civil_articles WHERE isKeyArticle = 1 ORDER BY id ASC")
+    fun getKeyArticles(): Flow<List<CivilArticleEntity>>
+
+    @Query("SELECT * FROM civil_articles WHERE text LIKE '%' || :query || '%' OR epigraph LIKE '%' || :query || '%' OR numberFormatted LIKE '%' || :query || '%' ORDER BY id ASC")
+    fun searchArticles(query: String): Flow<List<CivilArticleEntity>>
+
+    @Query("SELECT COUNT(*) FROM civil_articles")
+    suspend fun getCount(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertArticles(articles: List<CivilArticleEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertArticle(article: CivilArticleEntity)
+}
+
+@Dao
 interface FavoriteDao {
     @Query("SELECT * FROM favorites ORDER BY addedTimestamp DESC")
     fun getAllFavorites(): Flow<List<FavoriteEntity>>
